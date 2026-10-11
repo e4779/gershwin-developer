@@ -171,6 +171,28 @@ static int NonFatalXError(Display *dpy, XErrorEvent *e) {
         }
     }
 
+    // A minimized window can stay mapped (the window manager keeps one it
+    // shows live in a Dock tile mapped and only invisible at its own place);
+    // _NET_WM_STATE_HIDDEN is what says it is not on the screen.
+    BOOL hidden = NO;
+    Atom atomState = XInternAtom(d, "_NET_WM_STATE", True);
+    Atom atomHidden = XInternAtom(d, "_NET_WM_STATE_HIDDEN", True);
+    if (atomState != None && atomHidden != None) {
+        Atom actualType;
+        int actualFormat;
+        unsigned long nItems;
+        unsigned long bytesAfter;
+        unsigned char *prop = NULL;
+        if (XGetWindowProperty(d, w, atomState, 0, 32, False, XA_ATOM,
+                               &actualType, &actualFormat, &nItems, &bytesAfter, &prop) == Success) {
+            Atom *states = (Atom *)prop;
+            for (unsigned long i = 0; prop && i < nItems; i++) {
+                if (states[i] == atomHidden) hidden = YES;
+            }
+            if (prop) XFree(prop);
+        }
+    }
+
     // WM_STATE is set by the window manager on the windows it manages.
     // Chromium keeps unmanaged internal helper windows (which look like normal
     // toplevels but are not WM-managed); excluding them keeps whole-display
@@ -218,13 +240,15 @@ static int NonFatalXError(Display *dpy, XErrorEvent *e) {
         @"pid": @(pid),
         @"override_redirect": @(attrs.override_redirect ? YES : NO),
         @"net_wm_type": netWmType,
-        @"wm_managed": @(wmManaged)
+        @"wm_managed": @(wmManaged),
+        @"hidden": @(hidden)
     };
 }
 
 /* True if the dictionary from windowInfo: describes a real top-level
  * application window worth matching in a whole-display scan (per ICCCM/EWMH):
- * mapped, not override-redirect, and not one of the window-manager-internal
+ * mapped and not hidden (minimized), not override-redirect, and not one of
+ * the window-manager-internal
  * types (dock, tooltip, menu, notification, splash, desktop, ...).  Windows
  * with no _NET_WM_WINDOW_TYPE are assumed to be normal applications.  No
  * WM_STATE requirement: GNUstep windows do not carry it under the Gershwin
@@ -232,6 +256,7 @@ static int NonFatalXError(Display *dpy, XErrorEvent *e) {
 + (BOOL)isAppWindow:(NSDictionary *)info {
     if (!info) return NO;
     if ([[info objectForKey: @"map_state"] intValue] != 2) return NO; // IsViewable
+    if ([[info objectForKey: @"hidden"] boolValue]) return NO; // minimized
     if ([[info objectForKey: @"override_redirect"] boolValue]) return NO;
     if (![[info objectForKey: @"wm_managed"] boolValue]) return NO; // WM-managed or GNUstep
     NSString *type = [info objectForKey: @"net_wm_type"] ?: @"";
