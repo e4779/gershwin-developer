@@ -11,6 +11,11 @@ export PATH="${PATH}:$(cd "$(dirname "$0")" && pwd -P)"
 detect_platform
 export_vars
 
+# A login umask of 0002 (Debian default for users with a private group) would
+# install /System files group-writable (0664/0775); GNUstep then refuses the
+# insecure GNUstep.conf and preference files and Menu warns about them.
+umask 022
+
 export REPOS_DIR="$WORKDIR/Library/Sources"
 
 # The Gershwin domain is a clang toolchain end to end: the ng-gnu-gnu library
