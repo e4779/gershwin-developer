@@ -55,7 +55,6 @@ libxtst-dev
 libsquashfs-dev
 autoconf
 automake
-rpcbind
 dbus-x11
 patchelf
 libarchive-dev
