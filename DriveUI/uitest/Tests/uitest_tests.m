@@ -196,7 +196,41 @@ cpuPercentSince(pid_t pid, CPUWatchSample *st)
   return 0.0;
 }
 
-/* First pid matching a process name (pgrep -x), or 0. */
+/* A zombie still answers kill(pid, 0) and still matches pgrep, but it is
+ * dead.  Desktop components whose parent shell has exited are reparented to
+ * PID 1, and a CI container's PID 1 does not necessarily reap them: a
+ * Workspace that had exited then looked alive forever, so it was neither
+ * reported nor restarted, and every later test failed with "Workspace not
+ * running". */
+static BOOL
+processIsLive(pid_t pid)
+{
+  if (pid <= 0 || kill(pid, 0) != 0)
+    {
+      return NO;
+    }
+  FILE *fp = popen([[NSString stringWithFormat: @"ps -o stat= -p %d",
+    (int)pid] UTF8String], "r");
+  if (!fp)
+    {
+      return YES;
+    }
+  char line[32];
+  BOOL zombie = NO;
+  if (fgets(line, sizeof(line), fp))
+    {
+      char *c = line;
+      while (*c == ' ')
+        {
+          c++;
+        }
+      zombie = (*c == 'Z');
+    }
+  pclose(fp);
+  return !zombie;
+}
+
+/* First live pid matching a process name (pgrep -x), or 0. */
 static pid_t
 pidOfName(NSString *name)
 {
@@ -207,13 +241,17 @@ pidOfName(NSString *name)
       return 0;
     }
   char line[64];
-  pid_t pid = 0;
-  if (fgets(line, sizeof(line), fp))
+  pid_t found = 0;
+  while (found == 0 && fgets(line, sizeof(line), fp))
     {
-      pid = (pid_t)atoi(line);
+      pid_t pid = (pid_t)atoi(line);
+      if (processIsLive(pid))
+        {
+          found = pid;
+        }
     }
   pclose(fp);
-  return pid;
+  return found;
 }
 
 /* Best-effort diagnostic: dump the head of a process stack to stderr.
@@ -430,7 +468,7 @@ watchdogMain(void *arg)
             {
               continue;          /* Workspace not installed/running: skip */
             }
-          if (kill(pid, 0) == 0)
+          if (processIsLive(pid))
             {
               continue;          /* alive */
             }
@@ -532,9 +570,7 @@ lastLinesOfLog(NSString *path, int lines)
 static BOOL
 processRunning(NSString *name)
 {
-  NSString *cmd = [NSString stringWithFormat:@"pgrep -x %@ >/dev/null 2>&1",
-    name];
-  return WEXITSTATUS(system([cmd UTF8String])) == 0;
+  return pidOfName(name) > 0;
 }
 
 /* Path to an installed app bundle's executable, or nil.  Used to make a

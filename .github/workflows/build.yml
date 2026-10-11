@@ -83,9 +83,12 @@ jobs:
     # Privileged so run-uitests.sh can point kernel.core_pattern at a file:
     # the runner host pipes cores to apport, which the container never sees,
     # so a crashing desktop component or run_uitest would leave no core.
+    # --init gives the container a PID 1 that reaps orphans: without it a
+    # desktop component that exited stayed a zombie, still found by pgrep,
+    # so the suite neither noticed nor restarted it.
     container:
       image: archlinux:latest
-      options: --privileged --ulimit core=-1
+      options: --privileged --ulimit core=-1 --init
     env:
       UITEST_CRASH_DIAGNOSTICS: "1"
     steps:
@@ -167,10 +170,10 @@ jobs:
     name: Debian x86_64
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    # Privileged for the same core_pattern reason as the Arch job.
+    # Privileged and --init for the same reasons as the Arch job.
     container:
       image: debian:bookworm
-      options: --privileged --ulimit core=-1
+      options: --privileged --ulimit core=-1 --init
     env:
       UITEST_CRASH_DIAGNOSTICS: "1"
     steps:
