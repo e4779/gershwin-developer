@@ -55,4 +55,10 @@ wait until xwindow "EauTest" count = 1
 click titlebar "EauTest" close
 wait until xwindow "EauTest" count = 0
 
-shell "pkill -x EauTest; true"
+# Closing its last window quits EauTest by itself (GershwinBehaviors), and
+# that close looks up Menu's connection under the per-user port name lock.
+# A SIGTERM sent into that exit left the lock held for its 15 s timeout, and
+# the next application launched in that time died at startup ("Failed to
+# lock names for NSMessagePortNameServer").  So wait for the quit instead.
+wait until not exists application "EauTest" timeout 10s
+assert not exists application "EauTest"
