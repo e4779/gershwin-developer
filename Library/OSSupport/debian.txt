@@ -58,6 +58,7 @@ automake
 dbus-x11
 patchelf
 libarchive-dev
+libarchive-tools
 libavcodec-dev
 libavformat-dev
 libavutil-dev
