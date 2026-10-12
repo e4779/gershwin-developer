@@ -37,6 +37,12 @@ libXcomposite-devel
 autoconf
 automake
 libtool
-ffmpeg-devel
+ffmpeg6-devel
 sqlite-devel
 pam-devel
+MesaLib-devel
+libcurl-devel
+libarchive-devel
+squashfs-tools-ng
+squashfs-tools-ng-devel
+glu-devel 
